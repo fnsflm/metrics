@@ -6,40 +6,47 @@
   import compression from "compression"
   import cache from "memory-cache"
   import util from "util"
-  import setup from "../setup.mjs"
-  import mocks from "../mocks.mjs"
-  import metrics from "../metrics.mjs"
+  import setup from "../metrics/setup.mjs"
+  import mocks from "../mocks/index.mjs"
+  import metrics from "../metrics/index.mjs"
 
-/** App */
-  export default async function ({mock, nosettings} = {}) {
+/**App */
+  export default async function({mock, nosettings} = {}) {
 
     //Load configuration settings
       const {conf, Plugins, Templates} = await setup({nosettings})
       const {token, maxusers = 0, restricted = [], debug = false, cached = 30*60*1000, port = 3000, ratelimiter = null, plugins = null} = conf.settings
       mock = mock || conf.settings.mocked
 
-    //Apply configuration mocking if needed
-      if (mock) {
-        console.debug(`metrics/app > using mocked settings`)
-        const {settings} = conf
-        //Mock token if it's undefined
-          if (!settings.token)
-            settings.token = (console.debug(`metrics/app > using mocked token`), "MOCKED_TOKEN")
-        //Mock plugins state and tokens if they're undefined
-          for (const plugin of Object.keys(Plugins)) {
-            if (!settings.plugins[plugin])
-              settings.plugins[plugin] = {}
-            settings.plugins[plugin].enabled = settings.plugins[plugin].enabled ?? (console.debug(`metrics/app > using mocked token enable state for ${plugin}`), true)
-            if (["tweets", "pagespeed"].includes(plugin))
-              settings.plugins[plugin].token = settings.plugins[plugin].token ?? (console.debug(`metrics/app > using mocked token for ${plugin}`), "MOCKED_TOKEN")
-            if (["music"].includes(plugin))
-              settings.plugins[plugin].token = settings.plugins[plugin].token ?? (console.debug(`metrics/app > using mocked token for ${plugin}`), "MOCKED_CLIENT_ID, MOCKED_CLIENT_SECRET, MOCKED_REFRESH_TOKEN")
+    //Process mocking and default plugin state
+      for (const plugin of Object.keys(Plugins).filter(x => !["base", "core"].includes(x))) {
+        //Initialization
+          const {settings} = conf
+          if (!settings.plugins[plugin])
+            settings.plugins[plugin] = {}
+        //Auto-enable plugin if needed
+          if (conf.settings["plugins.default"])
+            settings.plugins[plugin].enabled = settings.plugins[plugin].enabled ?? (console.debug(`metrics/app > auto-enabling ${plugin}`), true)
+        //Mock plugins tokens if they're undefined
+          if (mock) {
+            const tokens = Object.entries(conf.metadata.plugins[plugin].inputs).filter(([key, value]) => (!/^plugin_/.test(key))&&(value.type === "token")).map(([key]) => key)
+            for (const token of tokens) {
+              if ((!settings.plugins[plugin][token])||(mock === "force")) {
+                console.debug(`metrics/app > using mocked token for ${plugin}.${token}`)
+                settings.plugins[plugin][token] = "MOCKED_TOKEN"
+              }
+            }
           }
-        console.debug(util.inspect(settings, {depth:Infinity, maxStringLength:256}))
       }
+      if (((mock)&&(!conf.settings.token))||(mock === "force")) {
+        console.debug("metrics/app > using mocked token")
+        conf.settings.token = "MOCKED_TOKEN"
+      }
+      if (debug)
+        console.debug(util.inspect(conf.settings, {depth:Infinity, maxStringLength:256}))
 
     //Load octokits
-      const api = {graphql:octokit.graphql.defaults({headers:{authorization: `token ${token}`}}), rest:new OctokitRest.Octokit({auth:token})}
+      const api = {graphql:octokit.graphql.defaults({headers:{authorization:`token ${token}`}}), rest:new OctokitRest.Octokit({auth:token})}
     //Apply mocking if needed
       if (mock)
         Object.assign(api, await mocks(api))
@@ -53,9 +60,11 @@
       if (ratelimiter) {
         app.set("trust proxy", 1)
         middlewares.push(ratelimit({
-          skip(req, res) { return !!cache.get(req.params.login) },
+          skip(req, _res) {
+            return !!cache.get(req.params.login)
+          },
           message:"Too many requests",
-          ...ratelimiter
+          ...ratelimiter,
         }))
       }
     //Cache headers middleware
@@ -66,11 +75,17 @@
 
     //Base routes
       const limiter = ratelimit({max:debug ? Number.MAX_SAFE_INTEGER : 60, windowMs:60*1000})
+      const metadata = Object.fromEntries(Object.entries(conf.metadata.plugins)
+        .filter(([key]) => !["base", "core"].includes(key))
+        .map(([key, value]) => [key, Object.fromEntries(Object.entries(value).filter(([key]) => ["name", "icon", "web", "supports"].includes(key)))]))
+      const enabled = Object.entries(metadata).map(([name]) => ({name, enabled:plugins[name]?.enabled ?? false}))
       const templates =  Object.entries(Templates).map(([name]) => ({name, enabled:(conf.settings.templates.enabled.length ? conf.settings.templates.enabled.includes(name) : true) ?? false}))
-      const enabled = Object.entries(Plugins).map(([name]) => ({name, enabled:plugins[name]?.enabled ?? false}))
       const actions = {flush:new Map()}
-      let requests = (await rest.rateLimit.get()).data.rate
-      setInterval(async () => requests = (await rest.rateLimit.get()).data.rate, 30*1000)
+      let requests = {limit:0, used:0, remaining:0, reset:NaN}
+      if (!conf.settings.notoken) {
+        requests = (await rest.rateLimit.get()).data.rate
+        setInterval(async() => requests = (await rest.rateLimit.get()).data.rate, 30*1000)
+      }
       //Web
         app.get("/", limiter, (req, res) => res.sendFile(`${conf.paths.statics}/index.html`))
         app.get("/index.html", limiter, (req, res) => res.sendFile(`${conf.paths.statics}/index.html`))
@@ -80,6 +95,7 @@
       //Plugins and templates
         app.get("/.plugins", limiter, (req, res) => res.status(200).json(enabled))
         app.get("/.plugins.base", limiter, (req, res) => res.status(200).json(conf.settings.plugins.base.parts))
+        app.get("/.plugins.metadata", limiter, (req, res) => res.status(200).json(metadata))
         app.get("/.templates", limiter, (req, res) => res.status(200).json(templates))
         app.get("/.templates/:template", limiter, (req, res) => req.params.template in conf.templates ? res.status(200).json(conf.templates[req.params.template]) : res.sendStatus(404))
         for (const template in conf.templates)
@@ -103,9 +119,9 @@
         app.get("/.js/prism.markdown.min.js", limiter, (req, res) => res.sendFile(`${conf.paths.node_modules}/prismjs/components/prism-markdown.min.js`))
       //Meta
         app.get("/.version", limiter, (req, res) => res.status(200).send(conf.package.version))
-        app.get("/.requests", limiter, async (req, res) => res.status(200).json(requests))
+        app.get("/.requests", limiter, async(req, res) => res.status(200).json(requests))
       //Cache
-        app.get("/.uncache", limiter, async (req, res) => {
+        app.get("/.uncache", limiter, async(req, res) => {
           const {token, user} = req.query
           if (token) {
             if (actions.flush.has(token)) {
@@ -113,10 +129,9 @@
               cache.del(actions.flush.get(token))
               return res.sendStatus(200)
             }
-            else
-              return res.sendStatus(404)
+            return res.sendStatus(404)
           }
-          else {
+          {
             const token = `${Math.random().toString(16).replace("0.", "")}${Math.random().toString(16).replace("0.", "")}`
             actions.flush.set(token, user)
             return res.json({token})
@@ -124,21 +139,20 @@
         })
 
     //Metrics
-      app.get("/:login", ...middlewares, async (req, res) => {
+      app.get("/:login", ...middlewares, async(req, res) => {
         //Request params
-          const {login} = req.params
+          const login = req.params.login?.replace(/[\n\r]/g, "")
           if ((restricted.length)&&(!restricted.includes(login))) {
             console.debug(`metrics/app/${login} > 403 (not in whitelisted users)`)
             return res.sendStatus(403)
           }
         //Read cached data if possible
-          //User cached
-            if ((!debug)&&(cached)&&(cache.get(login))) {
-              const {rendered, mime} = cache.get(login)
-              res.header("Content-Type", mime)
-              res.send(rendered)
-              return
-            }
+          if ((!debug)&&(cached)&&(cache.get(login))) {
+            const {rendered, mime} = cache.get(login)
+            res.header("Content-Type", mime)
+            res.send(rendered)
+            return
+          }
         //Maximum simultaneous users
           if ((maxusers)&&(cache.size()+1 > maxusers)) {
             console.debug(`metrics/app/${login} > 503 (maximum users reached)`)
@@ -148,13 +162,13 @@
         //Compute rendering
           try {
             //Render
-              const q = parse(req.query)
+              const q = req.query
               console.debug(`metrics/app/${login} > ${util.inspect(q, {depth:Infinity, maxStringLength:256})}`)
               const {rendered, mime} = await metrics({login, q}, {
                 graphql, rest, plugins, conf,
                 die:q["plugins.errors.fatal"] ?? false,
-                verify:q["verify"] ?? false,
-                convert:["jpeg", "png"].includes(q["config.output"]) ? q["config.output"] : null
+                verify:q.verify ?? false,
+                convert:["jpeg", "png"].includes(q["config.output"]) ? q["config.output"] : null,
               }, {Plugins, Templates})
             //Cache
               if ((!debug)&&(cached))
@@ -192,22 +206,6 @@
         `Max simultaneous users │ ${maxusers ? `${maxusers} users` : "(unrestricted)"}`,
         `Plugins enabled        │ ${enabled.map(({name}) => name).join(", ")}`,
         `SVG optimization       │ ${conf.settings.optimize ?? false}`,
-        `Server ready !`
+        "Server ready !",
       ].join("\n")))
-  }
-
-/** Query parser */
-  function parse(query) {
-    for (const [key, value] of Object.entries(query)) {
-      //Parse number
-        if (/^\d+$/.test(value))
-          query[key] = Number(value)
-      //Parse boolean
-        if (/^(?:true|false)$/.test(value))
-          query[key] = (value === "true")||(value === true)
-      //Parse null
-        if (/^null$/.test(value))
-          query[key] = null
-    }
-    return query
   }
