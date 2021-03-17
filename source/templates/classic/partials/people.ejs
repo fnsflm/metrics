@@ -22,7 +22,7 @@
           <% if (type === "thanks") { %>
             Special thanks
           <% } else { %>
-            <%= user[type].totalCount %> <%= {followers:`follower${s(user[type].totalCount)}`, following:"followed", sponsorshipsAsSponsor:"sponsored", sponsorshipsAsMaintainer:`sponsor${s(user[type].totalCount)}`}[type] %>
+            <%= user[type].totalCount %> <%= {followers:`follower${s(user[type].totalCount)}`, following:"followed", membersWithRole:`member${s(user[type].totalCount)}`, sponsorshipsAsSponsor:"sponsored", sponsorshipsAsMaintainer:`sponsor${s(user[type].totalCount)}`}[type] %>
           <% } %>
         </h2>
         <div class="row">
@@ -33,7 +33,7 @@
                 <%= plugins.people.error.message %>
               </div>
             <% } else { %>
-              <% for (const user of plugins.people[type]) { %><img class="avatar" src="data:image/png;base64,<%= user.avatar %>" width="<%= plugins.people.size %>" height="<%= plugins.people.size %>" alt="" /><% } %>
+              <% for (const user of plugins.people[type]) { %><img class="avatar" src="<%= user.avatar %>" width="<%= plugins.people.size %>" height="<%= plugins.people.size %>" alt="" /><% } %>
             <% } %>
           </section>
         </div>

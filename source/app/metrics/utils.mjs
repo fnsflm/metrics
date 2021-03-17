@@ -7,11 +7,13 @@
   import processes from "child_process"
   import axios from "axios"
   import puppeteer from "puppeteer"
-  import imgb64 from "image-to-base64"
   import git from "simple-git"
   import twemojis from "twemoji-parser"
+  import jimp from "jimp"
+  import opengraph from "open-graph-scraper"
 
-  export {fs, os, paths, url, util, processes, axios, puppeteer, imgb64, git}
+//Exports
+  export {fs, os, paths, url, util, processes, axios, puppeteer, git, opengraph}
 
 /**Returns module __dirname */
   export function __module(module) {
@@ -84,14 +86,14 @@
       .replace(/'/g, u["'"] ? "&apos;" : "'")
   }
 
-/**Expand url */
-  export async function urlexpand(url) {
-    try {
-      return (await axios.get(url)).request.res.responseUrl
-    }
-    catch {
-      return url
-    }
+/**Unescape html */
+  export function htmlunescape(string, u = {"&":true, "<":true, ">":true, '"':true, "'":true}) {
+    return string
+      .replace(/&lt;/g, u["<"] ? "<" : "&lt;")
+      .replace(/&gt;/g, u[">"] ? ">" : "&gt;")
+      .replace(/&quot;/g, u['"'] ? '"' : "&quot;")
+      .replace(/&(?:apos|#39);/g, u["'"] ? "'" : "&apos;")
+      .replace(/&amp;/g, u["&"] ? "&" : "&amp;")
   }
 
 /**Run command */
@@ -126,66 +128,136 @@
     return false
   }
 
-/**Render svg */
-  export async function svgresize(svg, {paddings, convert}) {
-    //Instantiate browser if needed
-      if (!svgresize.browser) {
-        svgresize.browser = await puppeteer.launch({headless:true, executablePath:process.env.PUPPETEER_BROWSER_PATH, args:["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]})
-        console.debug(`metrics/svgresize > started ${await svgresize.browser.version()}`)
-      }
-    //Format padding
-      const [pw = 1, ph] = (Array.isArray(paddings) ? paddings : `${paddings}`.split(",").map(x => x.trim())).map(padding => `${padding}`.substring(0, padding.length-1)).map(value => 1+Number(value)/100)
-      const padding = {width:pw, height:ph ?? pw}
-      console.debug(`metrics/svgresize > padding width*${padding.width}, height*${padding.height}`)
-    //Render through browser and resize height
-      const page = await svgresize.browser.newPage()
-      await page.setContent(svg, {waitUntil:["load", "domcontentloaded", "networkidle2"]})
-      await page.addStyleTag({content:"body { margin: 0; padding: 0; }"})
-      await wait(1)
-      let mime = "image/svg+xml"
-      let {resized, width, height} = await page.evaluate(async padding => {
-        //Disable animations
-          const animated = !document.querySelector("svg").classList.contains("no-animations")
-          if (animated)
-            document.querySelector("svg").classList.add("no-animations")
-        //Get bounds and resize
-          let {y:height, width} = document.querySelector("svg #metrics-end").getBoundingClientRect()
-          height = Math.ceil(height*padding.height)
-          width = Math.ceil(width*padding.width)
-        //Resize svg
-          document.querySelector("svg").setAttribute("height", height)
-        //Enable animations
-          if (animated)
-            document.querySelector("svg").classList.remove("no-animations")
-        //Result
-          return {resized:new XMLSerializer().serializeToString(document.querySelector("svg")), height, width}
-      }, padding)
-    //Convert if required
-      if (convert) {
-        console.debug(`metrics/svgresize > convert to ${convert}`)
-        resized = await page.screenshot({type:convert, clip:{x:0, y:0, width, height}, omitBackground:true})
-        mime = `image/${convert}`
-      }
-    //Result
-      await page.close()
-      return {resized, mime}
+/**Image to base64 */
+  export async function imgb64(image, {width, height, fallback = true} = {}) {
+    //Undefined image
+      if (!image)
+        return fallback ? "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mOcOnfpfwAGfgLYttYINwAAAABJRU5ErkJggg==" : null
+    //Load image
+      image = await jimp.read(image)
+    //Resize image
+      if ((width)&&(height))
+        image = image.resize(width, height)
+    return image.getBase64Async(jimp.AUTO)
   }
 
-/**Render twemojis */
-  export async function svgemojis(svg) {
-    //Load emojis
-      const emojis = new Map()
-      for (const {text:emoji, url} of twemojis.parse(svg)) {
-        if (!emojis.has(emoji))
-          emojis.set(emoji, (await axios.get(url)).data.replace(/^<svg /, '<svg class="twemoji" '))
-      }
-    //Apply replacements
-      for (const [emoji, twemoji] of emojis)
-        svg = svg.replace(new RegExp(emoji, "g"), twemoji)
-    return svg
+/**SVG utils */
+  export const svg = {
+    /**Render and resize svg */
+      async resize(rendered, {paddings, convert}) {
+        //Instantiate browser if needed
+          if (!svg.resize.browser) {
+            svg.resize.browser = await puppeteer.launch({headless:true, executablePath:process.env.PUPPETEER_BROWSER_PATH, args:["--no-sandbox", "--disable-extensions", "--disable-setuid-sandbox", "--disable-dev-shm-usage"], ignoreDefaultArgs:["--disable-extensions"]})
+            console.debug(`metrics/svg/resize > started ${await svg.resize.browser.version()}`)
+          }
+        //Format padding
+          const [pw = 1, ph] = (Array.isArray(paddings) ? paddings : `${paddings}`.split(",").map(x => x.trim())).map(padding => `${padding}`.substring(0, padding.length-1)).map(value => 1+Number(value)/100)
+          const padding = {width:pw, height:ph ?? pw}
+          console.debug(`metrics/svg/resize > padding width*${padding.width}, height*${padding.height}`)
+        //Render through browser and resize height
+          console.debug("metrics/svg/resize > loading svg")
+          const page = await svg.resize.browser.newPage()
+          page.on("console", ({_text:text}) => console.debug(`metrics/svg/resize > puppeteer > ${text}`))
+          await page.setContent(rendered, {waitUntil:["load", "domcontentloaded", "networkidle2"]})
+          console.debug("metrics/svg/resize > loaded svg successfully")
+          await page.addStyleTag({content:"body { margin: 0; padding: 0; }"})
+          let mime = "image/svg+xml"
+          console.debug("metrics/svg/resize > resizing svg")
+          let height, resized, width
+          try {
+            ({resized, width, height} = await page.evaluate(async padding => {
+              //Disable animations
+                const animated = !document.querySelector("svg").classList.contains("no-animations")
+                if (animated)
+                  document.querySelector("svg").classList.add("no-animations")
+                console.debug(`animations are ${animated ? "enabled" : "disabled"}`)
+                await new Promise(solve => setTimeout(solve, 2400)) //eslint-disable-line no-promise-executor-return
+              //Get bounds and resize
+                let {y:height, width} = document.querySelector("svg #metrics-end").getBoundingClientRect()
+                console.debug(`bounds width=${width}, height=${height}`)
+                height = Math.ceil(height*padding.height)
+                width = Math.ceil(width*padding.width)
+                console.debug(`bounds after applying padding width=${width} (*${padding.width}), height=${height} (*${padding.height})`)
+              //Resize svg
+                document.querySelector("svg").setAttribute("height", height)
+              //Enable animations
+                if (animated)
+                  document.querySelector("svg").classList.remove("no-animations")
+              //Result
+                return {resized:new XMLSerializer().serializeToString(document.querySelector("svg")), height, width}
+            }, padding))
+          }
+          catch (error) {
+            console.error(error)
+            console.debug(`metrics/svg/resize > an error occured: ${error}`)
+            throw error
+          }
+        //Convert if required
+          if (convert) {
+            console.debug(`metrics/svg/resize > convert to ${convert}`)
+            resized = await page.screenshot({type:convert, clip:{x:0, y:0, width, height}, omitBackground:true})
+            mime = `image/${convert}`
+          }
+        //Result
+          await page.close()
+          console.debug("metrics/svg/resize > rendering complete")
+          return {resized, mime}
+      },
+    /**Render twemojis */
+      async twemojis(rendered) {
+        //Load emojis
+          console.debug("metrics/svg/twemojis > rendering twemojis")
+          const emojis = new Map()
+          for (const {text:emoji, url} of twemojis.parse(rendered)) {
+            if (!emojis.has(emoji))
+              emojis.set(emoji, (await axios.get(url)).data.replace(/^<svg /, '<svg class="twemoji" '))
+          }
+        //Apply replacements
+          for (const [emoji, twemoji] of emojis) {
+            rendered = rendered.replace(new RegExp(`<metrics[ ]*(?<attributes>[^>]*)>${emoji}</metrics>`, "g"), twemoji.replace('<svg class="twemoji" ', '<svg class="twemoji" $<attributes>'))
+            rendered = rendered.replace(new RegExp(emoji, "g"), twemoji)
+          }
+        return rendered
+      },
+    /**Render github emojis */
+      async gemojis(rendered, {rest}) {
+        //Load gemojis
+          console.debug("metrics/svg/gemojis > rendering gemojis")
+          const emojis = new Map()
+          try {
+            for (const [emoji, url] of Object.entries((await rest.emojis.get()).data).map(([key, value]) => [`:${key}:`, value])) {
+              if (((!emojis.has(emoji)))&&(new RegExp(emoji, "g").test(rendered)))
+                emojis.set(emoji, `<img class="gemoji" src="${await imgb64(url)}" height="16" width="16" alt="">`)
+            }
+          }
+          catch (error) {
+            console.debug("metrics/svg/gemojis > could not load gemojis")
+            console.debug(error)
+          }
+        //Apply replacements
+          for (const [emoji, gemoji] of emojis)
+            rendered = rendered.replace(new RegExp(emoji, "g"), gemoji)
+        return rendered
+      },
   }
 
 /**Wait */
   export async function wait(seconds) {
     await new Promise(solve => setTimeout(solve, seconds*1000)) //eslint-disable-line no-promise-executor-return
+  }
+
+/**Create gif from puppeteer browser */
+  export async function record({page, width, height, frames, scale = 1, quality = 80, x = 0, y = 0, delay = 150}) {
+    //Register images frames
+      const images = []
+      for (let i = 0; i < frames; i++) {
+        images.push(await page.screenshot({type:"png", clip:{width, height, x, y}}))
+        await wait(delay/1000)
+        if (i%10 === 0)
+          console.debug(`metrics/record > processed ${i}/${frames} frames`)
+      }
+      console.debug(`metrics/record > processed ${frames}/${frames} frames`)
+    //Post-processing
+      console.debug("metrics/record > applying post-processing")
+      return Promise.all(images.map(async buffer => (await jimp.read(buffer)).scale(scale).quality(quality).getBase64Async("image/png")))
   }

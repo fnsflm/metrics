@@ -4,12 +4,16 @@
   import url from "url"
   import yaml from "js-yaml"
 
+//Defined categories
+  const categories = ["core", "github", "social", "health", "other"]
+
 /**Metadata descriptor parser */
   export default async function metadata({log = true} = {}) {
     //Paths
       const __metrics = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "../../..")
       const __templates = path.join(__metrics, "source/templates")
       const __plugins = path.join(__metrics, "source/plugins")
+      const __package = path.join(__metrics, "package.json")
 
     //Init
       const logger = log ? console.debug : () => null
@@ -24,9 +28,9 @@
         Plugins[name] = await metadata.plugin({__plugins, name, logger})
       }
     //Reorder keys
-      const {base, core, ...plugins} = Plugins
-      Plugins = {base, core, ...plugins}
-
+      const {base, core, ...plugins} = Plugins //eslint-disable-line no-unused-vars
+      Plugins = Object.fromEntries(Object.entries(Plugins).sort(([_an, a], [_bn, b]) => a.categorie === b.categorie ? (a.index ?? Infinity) - (b.index ?? Infinity) : categories.indexOf(a.categorie) - categories.indexOf(b.categorie)))
+      logger(`metrics/metadata > loaded [${Object.keys(Plugins).join(", ")}]`)
     //Load templates metadata
       let Templates = {}
       logger("metrics/metadata > loading templates metadata")
@@ -42,8 +46,11 @@
       const {classic, repository, community, ...templates} = Templates
       Templates = {classic, repository, ...templates, community}
 
+    //Packaged metadata
+      const packaged = JSON.parse(`${await fs.promises.readFile(__package)}`)
+
     //Metadata
-      return {plugins:Plugins, templates:Templates}
+      return {plugins:Plugins, templates:Templates, packaged}
   }
 
 /**Metadata extractor for templates */
@@ -52,6 +59,10 @@
       //Load meta descriptor
         const raw = `${await fs.promises.readFile(path.join(__plugins, name, "metadata.yml"), "utf-8")}`
         const {inputs, ...meta} = yaml.load(raw)
+
+      //Categorie
+        if (!categories.includes(meta.categorie))
+          meta.categorie = "other"
 
       //Inputs parser
         {
@@ -198,14 +209,14 @@
               (() => {
                 switch (type) {
                   case "boolean":
-                    return {text, type:"boolean"}
+                    return {text, type:"boolean", defaulted:/^(?:[Tt]rue|[Oo]n|[Yy]es|1)$/.test(defaulted) ? true : /^(?:[Ff]alse|[Oo]ff|[Nn]o|0)$/.test(defaulted) ? false : defaulted}
                   case "number":
                     return {text, type:"number", min, max, defaulted}
                   case "array":
                     return {text, type:"text", placeholder:example ?? defaulted, defaulted}
                   case "string":{
                     if (Array.isArray(values))
-                      return {text, type:"select", values}
+                      return {text, type:"select", values, defaulted}
                     return {text, type:"text", placeholder:example ?? defaulted, defaulted}
                   }
                   case "json":

@@ -13,7 +13,7 @@ Assuming your username is `my-github-user`, you can then embed rendered metrics 
 ```
 
 <details>
-<summary>💬 How to setup?</summary>
+<summary><b>💬 How to setup?</b> <i>(click to expand)</i></summary>
 
 ### 0. Setup your personal repository
 
@@ -44,7 +44,7 @@ If a plugin has not enough scopes to operate (and `plugins_errors_fatal` isn't e
 
 ![Plugin error example](https://github.com/lowlighter/lowlighter/blob/master/metrics.plugin.error.svg)
 
-### 2. Put your GitHub perosnal token in your repository secrets
+### 2. Put your GitHub personal token in your repository secrets
 
 Go to the `Settings` of your repository to create a new secret and paste your freshly generated GitHub token there.
 
@@ -60,8 +60,8 @@ on:
   # Schedule updates (each hour)
   schedule: [{cron: "0 * * * *"}]
   # Lines below let you run workflow manually and on each commit (optional)
-  push: {branches: ["master", "main"]}
   workflow_dispatch:
+  push: {branches: ["master", "main"]}
 jobs:
   github-metrics:
     runs-on: ubuntu-latest
@@ -71,8 +71,6 @@ jobs:
         with:
           # Your GitHub token
           token: ${{ secrets.METRICS_TOKEN }}
-          # GITHUB_TOKEN is a special auto-generated token restricted to current repository, which is used to push files in it
-          committer_token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 See all supported options in [action.yml](action.yml).

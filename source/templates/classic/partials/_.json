@@ -1,5 +1,6 @@
 [
   "base.header",
+  "introduction",
   "base.activity+community",
   "base.repositories",
   "followup",
@@ -18,6 +19,10 @@
   "stargazers",
   "people",
   "activity",
+  "reactions",
   "anilist",
-  "wakatime"
+  "wakatime",
+  "skyline",
+  "stackoverflow",
+  "achievements"
 ]

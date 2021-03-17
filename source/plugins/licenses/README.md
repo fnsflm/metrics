@@ -1,4 +1,4 @@
-### 📜 Licenses
+### 📜 Repository licenses
 
     ⚠️ This is NOT legal advice, use at your own risk
     💣 Do NOT enable this plugin on public web instances (plugin allows raw commands injection)
@@ -29,7 +29,7 @@ Dependencies will be analyzed with [github/licensed](https://github.com/github/l
     # ... other options
     template: repository
     user: repository-owner
-    query: '{"repo":"repository-name"}'
+    repo: repository-name
     plugin_licenses: yes
     plugin_licenses_setup: npm ci       # Command to setup target repository
     plugin_licenses_ratio: yes          # Display used licenses ratio

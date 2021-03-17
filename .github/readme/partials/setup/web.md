@@ -11,7 +11,7 @@ Assuming your username is `my-github-user`, you can then embed rendered metrics 
 ```
 
 <details>
-<summary>💬 How to setup?</summary>
+<summary><b>💬 How to setup?</b> <i>(click to expand)</i></summary>
 
 ### 0. Prepare your server
 
@@ -98,22 +98,6 @@ systemctl enable github_metrics
 systemctl start github_metrics
 systemctl status github_metrics
 ```
-
-</details>
-
-<details>
-<summary>⚠️ HTTP errors code</summary>
-
-Following error codes may be encountered on web instance:
-
-| Error code                | Description                                                                |
-| ------------------------- | -------------------------------------------------------------------------- |
-| `400 Bad request`         | Invalid query (e.g. unsupported template)                                  |
-| `403 Forbidden`           | User not allowed in `restricted` users list                                |
-| `404 Not found`           | GitHub API did not found the requested user                                |
-| `429 Too many requests`   | Thrown when rate limiter is trigerred                                      |
-| `500 Internal error`      | Server error while generating metrics images (check logs for more details) |
-| `503 Service unavailable` | Maximum user capacity reached, only cached images can be accessed for now  |
 
 </details>
 

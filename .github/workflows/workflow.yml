@@ -19,12 +19,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Setup NodeJS
         uses: actions/setup-node@v2
         with:
           node-version: 15
       - name: Setup metrics
         run: npm ci
+      - name: Check contributions requirements
+        run: npm test -- ci.test.js --noStackTrace
       - name: Run linter
         run: npm run linter
 
@@ -39,7 +43,7 @@ jobs:
       - name: Build lowlighter/metrics:${{ github.head_ref || 'master' }}
         run: docker build -t lowlighter/metrics:${{ github.head_ref || 'master' }} .
       - name: Run tests
-        run: docker run --workdir=/metrics --entrypoint="" lowlighter/metrics:${{ github.head_ref || 'master' }} npm test
+        run: docker run --workdir=/metrics --entrypoint="" lowlighter/metrics:${{ github.head_ref || 'master' }} npm test -- metrics.test.js
 
   # Run CodeQL on branch
   analyze:
@@ -90,6 +94,15 @@ jobs:
         run: docker build -t ghcr.io/lowlighter/metrics:master .
       - name: Publish to GitHub registry
         run: docker push ghcr.io/lowlighter/metrics:master
+      - name: Tag docker image (beta) and publish to GitHub registry
+        run: |
+          set +e
+          METRICS_VERSION=$(cat package.json | grep -Po '(?<="version": ")\d+[.]\d+(?=[.]0-beta")')
+          METRICS_VERSION_BETA="$METRICS_VERSION-beta"
+          set -e
+          echo "Beta version: v$METRICS_VERSION_BETA"
+          docker tag ghcr.io/lowlighter/metrics:master ghcr.io/lowlighter/metrics:$(echo "v$METRICS_VERSION_BETA")
+          docker push ghcr.io/lowlighter/metrics:$(echo "v$METRICS_VERSION_BETA")
 
   # Test lowlighter/metrics@master
   action-master-test:
@@ -106,7 +119,7 @@ jobs:
           dryrun: yes
           use_mocked_data: yes
           verify: yes
-          use_prebuilt_image: master
+          use_prebuilt_image: no
 
   # Build docker image from master and publish it to GitHub registry with release tag
   docker-release:
@@ -130,11 +143,35 @@ jobs:
       - name: Publish latest to GitHub registry
         run: docker push ghcr.io/lowlighter/metrics:latest
 
+  # Rebase latest branch on master
+  update-latest:
+    name: Rebase latest on master
+    runs-on: ubuntu-latest
+    needs: [ docker-release ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && contains(github.event.head_commit.message, '[release]')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Setup NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: 15
+      - name: Setup metrics
+        run: npm ci
+      - name: Checkout latest
+        run: git checkout latest
+      - name: Rebase latest on master
+        run: git merge master
+      - name: Push latest
+        run: git push origin latest
+
   # Test lowlighter/metrics@latest
   action-latest-test:
     name: Test lowlighter/metrics@latest
     runs-on: ubuntu-latest
-    needs: [ docker-release ]
+    needs: [ update-latest ]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master' && contains(github.event.head_commit.message, '[release]')
     steps:
       - name: Run tests
@@ -145,6 +182,28 @@ jobs:
           dryrun: yes
           use_mocked_data: yes
           verify: yes
+
+  # Publish GitHub release
+  publish-release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: [ action-latest-test ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && contains(github.event.head_commit.message, '[release]')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Setup NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: 15
+      - name: Setup metrics
+        run: npm ci
+      - name: Publish release
+        run: node .github/release.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
 
   # Deploy to metrics.lecoq.io
   deploy-master:

@@ -21,13 +21,13 @@
   const staged = new Set()
 
 //Load plugins metadata
-  const {plugins, templates} = await metadata({log:false})
+  const {plugins, templates, packaged} = await metadata({log:false})
 
 //Update generated files
   async function update({source, output, options = {}}) {
     //Regenerate file
       console.log(`Generating ${output}`)
-      const content = await ejs.renderFile(source, {plugins, templates}, {async:true, ...options})
+      const content = await ejs.renderFile(source, {plugins, templates, packaged}, {async:true, ...options})
     //Save result
       const file = paths.join(__metrics, output)
       await fs.writeFile(file, content)
@@ -46,8 +46,8 @@
   if (mode === "publish") {
     console.log(`Pushing staged changes: \n${[...staged].map(file => `  - ${file}`).join("\n")}`)
     const gitted = await git
-      .addConfig("user.name", "GitHub Action")
-      .addConfig("user.email", "<>")
+      .addConfig("user.name", "github-actions[bot]")
+      .addConfig("user.email", "41898282+github-actions[bot]@users.noreply.github.com")
       .add([...staged])
       .commit("Auto-regenerate files")
       .push("origin", "master")

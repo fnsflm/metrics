@@ -12,7 +12,11 @@
   "debug": false,                  "//": "Debug logs",
   "mocked": false,                 "//": "Use mocked data instead of live APIs (use 'force' to use mocked token even if real token are defined)",
   "repositories": 100,             "//": "Number of repositories to use",
-  "padding": ["6%", "12%"],        "//": "Image padding (default)",
+  "padding": ["6%", "13%"],        "//": "Image padding (default)",
+  "hosted": {
+    "by": "",                      "//": "Web instance host (displayed in footer)",
+    "link": "",                    "//": "Web instance host link (displayed in footer)"
+  },
   "community": {
     "templates": [],               "//": "Additional community templates to setup"
   },
@@ -22,55 +26,23 @@
   },
   "plugins.default": false,        "//": "Default plugin state (advised to let 'false' unless in debug mode)",
   "plugins": {                     "//": "Global plugin configuration",
-    "activity":{
-      "enabled": false,            "//": "Display recent activity"
-    },
-    "anilist":{
-      "enabled": false,            "//": "Display data from your AniList account"
-    },
-    "followup":{
-      "enabled": false,            "//": "Display follow-up of repositories issues and pull requests"
-    },
-    "gists":{
-      "enabled": false,            "//": "Display gists metrics"
-    },
-    "habits":{
-      "enabled": false,            "//": "Display coding habits metrics"
-    },
     "isocalendar":{
       "enabled": false,            "//": "Display an isometric view of your commits calendar"
     },
     "languages":{
       "enabled": false,            "//": "Display most used languages metrics"
     },
+    "introduction":{
+      "enabled": false,            "//": "Display account or repository introduction"
+    },
+    "habits":{
+      "enabled": false,            "//": "Display coding habits metrics"
+    },
     "licenses":{
       "enabled": false,            "//": "Display licenses informations"
     },
-    "lines":{
-      "enabled": false,            "//": "Display lines of code metrics"
-    },
-    "music":{
-      "token": null,               "//":"Music provider personal token",
-      "enabled": false,            "//": "Display your music tracks"
-    },
-    "nightscout":{
-      "enabled": false,            "//": "Displays Blood Glucose"
-    },
-    "pagespeed":{
-      "token": null,               "//":"PageSpeed token",
-      "enabled": false,            "//": "Display a website Google PageSpeed metrics"
-    },
-    "people":{
-      "enabled": false,            "//": "Display GitHub users from various affiliations"
-    },
-    "posts":{
-      "enabled": false,            "//": "Display recent posts"
-    },
-    "projects":{
-      "enabled": false,            "//": "Display active projects"
-    },
-    "stargazers":{
-      "enabled": false,            "//": "Display stargazers metrics"
+    "contributors":{
+      "enabled": false,            "//": "Display repository contributors"
     },
     "stars":{
       "enabled": false,            "//": "Display recently starred repositories"
@@ -78,16 +50,66 @@
     "topics":{
       "enabled": false,            "//": "Display starred topics"
     },
+    "reactions":{
+      "enabled": false,            "//": "Display average issue comments reactions"
+    },
+    "people":{
+      "enabled": false,            "//": "Display GitHub users from various affiliations"
+    },
+    "gists":{
+      "enabled": false,            "//": "Display gists metrics"
+    },
+    "followup":{
+      "enabled": false,            "//": "Display follow-up of repositories issues and pull requests"
+    },
+    "lines":{
+      "enabled": false,            "//": "Display lines of code metrics"
+    },
     "traffic":{
       "enabled": false,            "//": "Display repositories traffic metrics"
+    },
+    "stargazers":{
+      "enabled": false,            "//": "Display stargazers metrics"
+    },
+    "projects":{
+      "enabled": false,            "//": "Display active projects"
+    },
+    "activity":{
+      "enabled": false,            "//": "Display recent activity"
+    },
+    "achievements":{
+      "enabled": false,            "//": "Display achievements"
+    },
+    "skyline":{
+      "enabled": false,            "//": "Display GitHub Skyline 3D calendar"
+    },
+    "pagespeed":{
+      "token": null,               "//":"PageSpeed token",
+      "enabled": false,            "//": "Display a website Google PageSpeed metrics"
+    },
+    "music":{
+      "token": null,               "//":"Music provider personal token",
+      "enabled": false,            "//": "Display your music tracks"
     },
     "tweets":{
       "token": null,               "//":"Twitter API token",
       "enabled": false,            "//": "Display recent tweets"
     },
+    "anilist":{
+      "enabled": false,            "//": "Display data from your AniList account"
+    },
+    "stackoverflow":{
+      "enabled": false,            "//": "Stackoverflow metrics"
+    },
+    "posts":{
+      "enabled": false,            "//": "Display recent posts"
+    },
     "wakatime":{
       "token": null,               "//":"WakaTime API token",
       "enabled": false,            "//": "Display WakaTime stats"
+    },
+    "nightscout":{
+      "enabled": false,            "//": "Displays Blood Glucose"
     },
     "//": ""
   }

@@ -7,15 +7,18 @@ For convenience, you can use the shared instance available at [metrics.lecoq.io]
 ```
 
 This is mostly intended for previews, to enjoy all features consider using GitHub Action instead.
+Availability is not guaranteed.
 
 <details>
-<summary>💬 Fair use</summary>
+<summary><b>💬 Fair use</b> <i>(click to expand)</i></summary>
 
 To ensure service availability, shared instance has a few limitations:
-  * Images are cached for 1 hour
+  * Images are cached for 15 minutes
     * Rendered metrics **won't be updated** during this time window when queried
     * You can manually update rendering againg your metrics on [metrics.lecoq.io](https://metrics.lecoq.io)
-  * There is a rate limiter enabled (it doesn't affect already cached metrics)
-  * Several plugins may not be available
+  * A rate limiter is enabled to prevent denial of service (it doesn't affect already cached metrics)
+  * Some plugins may not be available
+
+Service is provided free of charge, so please be gentle with it 🙂
 
 </details>
